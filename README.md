@@ -1,4 +1,5 @@
 # JOSI - Jags Oceanic Spatial Interpolator
-An advection equation solver for oceanic parameter spatial interpolation based on Jags and Gibbs sampling
+An advection equation solver for oceanic parameter spatial interpolation based on Jags and Gibbs sampling.
 
-![Example of global scale temperature layer](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png)
+![](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png)
+*Figure 1. Example of global scale temperature layer estimated from observation data from the Argo network.* 
