@@ -6,20 +6,15 @@ library(plyr)
 library(dplyr)
 
 #ASC files definitions
-currents_u_file = "../masked_layers/oceanic_currents_u_wm.asc"
-currents_v_file = "../masked_layers/oceanic_currents_v_wm.asc"
-depth_file = "../masked_layers/gebco_30sec_8_clip_025deg_wm.asc"
+currents_u_file = "./input_spatial_layers/oceanic_currents_u_wm.asc"
+currents_v_file = "./input_spatial_layers/oceanic_currents_v_wm.asc"
+depth_file = "./input_spatial_layers/gebco_30sec_8_clip_025deg_wm.asc"
 
-#currents_u_file = "../masked_layers/oceanic_currents_u_wm_1deg.asc"
-#currents_v_file = "../masked_layers/oceanic_currents_v_wm_1deg.asc"
+#currents_u_file = "./input_spatial_layers/oceanic_currents_u_1deg.asc"
+#currents_v_file = "./input_spatial_layers/oceanic_currents_v_1deg.asc"
+#depth_file = "./input_spatial_layers/gebco_30sec_8_clipped_res_1.asc"
 
-#currents_u_file = "../prepared_files/oceanic_currents_u.asc"
-#currents_v_file = "../prepared_files/oceanic_currents_v.asc"
-
-currents_u_file = "../prepared_files/oceanic_currents_u_1deg.asc"
-currents_v_file = "../prepared_files/oceanic_currents_v_1deg.asc"
-depth_file = "../prepared_files/gebco_30sec_8_clipped_res_1.asc"
-punctual_data_file = "../prepared_files/temperature_argo.csv"
+punctual_data_file = "./observations/temperature_argo.csv"
 
 #OUTPUT files will be: 
 prior_data_output = gsub(pattern = ".csv",replacement = "_advsolver_IW_prior.asc",x = punctual_data_file)
