@@ -1,4 +1,4 @@
-# JOSI - Jags Oceanic Spatial Interpolator
+# BIMAC - Bayesian Interpolation Model with Advection-diffusion Constraint
 An advection equation solver for oceanic parameter spatial interpolation based on Jags and Gibbs sampling.
 
 ![](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png)
