@@ -1,10 +1,21 @@
 # BIMAC - Bayesian Interpolation Model with Advection-diffusion Constraint
 An advection equation solver for oceanic parameter spatial interpolation based on Jags and Gibbs sampling.
 
+The software is an all-in-one script (BIMAC.R). 
+The essential input parameters to change are:
+
+currents_u_file = "./input_spatial_layers/oceanic_currents_u_1deg.asc"
+
+currents_v_file = "./input_spatial_layers/oceanic_currents_v_1deg.asc"
+
+punctual_data_file = "./observations/temperature_argo.csv"
+
+analysis_depth<--1
+
 ![](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png)
 *Figure 1. Example of global scale temperature layer estimated from observation data from the Argo network.* 
 
-##Notes on data preparation:
+## Notes on data preparation
 
 1 - Download oceanic currents' components from Copernicus,e.g.:
 
