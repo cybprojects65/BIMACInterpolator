@@ -26,6 +26,7 @@ posterior_data_output_sd = "./output/BIMAC_interpolation_sd.asc"
 min_diffusion_coefficient = 0.00000000001
 max_diffusion_coefficient = 0.0000000003
 fast_solving<-T
+smooth = T
 moving_average_points<-1
 sd_advection_equation<-0.1#0.1 #regulates the strictness of the data to comply with the advection-diffusion equation: the smaller, the stricter
 
@@ -571,7 +572,7 @@ if(length(land)>0){
 cat("Smoothing\n")
 data_matrix_postfilled<-matrix(dmpC, nrow = nrow_r,ncol = ncol_r,byrow = T)
 data_matrix_postfilled_sd<-matrix(dmpV, nrow = nrow_r,ncol = ncol_r,byrow = T)
-smooth = T
+
 if (smooth){
   data_matrix_postfilled_smoothed<-sapply(1:nrow_r, function(i){
     #take moving_average_points-elements around each point in a row
