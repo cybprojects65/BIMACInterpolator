@@ -12,6 +12,18 @@ punctual_data_file = "./observations/temperature_argo.csv"
 
 analysis_depth<--1
 
+## Alternative version: BIMAC-No Advection - BIMAC without Advection-diffusion Constraint
+Full automatic spatial interpolation without the AD constraint.
+The software is an all-in-one script (BIMAC_no_advection.R). 
+
+The essential input parameters to change are:
+
+punctual_data_file = "./observations/temperature_argo.csv"
+
+analysis_depth_min<--12000
+
+analysis_depth_max<--1
+
 ![](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png)
 *Figure 1. Example of global scale temperature layer estimated from observation data from the Argo network.* 
 
