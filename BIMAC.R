@@ -27,6 +27,7 @@ min_diffusion_coefficient = 0.00000000001
 max_diffusion_coefficient = 0.0000000003
 fast_solving<-T
 moving_average_points<-1
+sd_advection_equation<-0.1#0.1 #regulates the strictness of the data to comply with the advection-diffusion equation: the smaller, the stricter
 
 #Function to transform a raster file into a matrix
 asc_to_matrix<-function(asc_raster_file){
@@ -459,7 +460,8 @@ jags.data <- list ("data_matrix_prefilled_vector",
                    "valid_index_for_advection_vector_idx",
                    "land_no_values",
                    "max_diffusion_coefficient",
-                   "min_diffusion_coefficient")
+                   "min_diffusion_coefficient",
+                   "sd_advection_equation")
 #P = posterior distribution values
 jags.params <- c("P","D_p")
 
@@ -516,7 +518,7 @@ for (k in valid_index_for_advection_vector_idx){
   advection[k]<-ifelse(ux_dpsi_dx[k]==0 || uy_dpsi_dy[k]==0, 
                 0, 
                 ux_dpsi_dx[k]+uy_dpsi_dy[k])
-  invsigma_adv[k] <- pow(0.1,-2)
+  invsigma_adv[k] <- pow(sd_advection_equation,-2)
   #fit the equation to 0
   zeros[k] ~ dnorm(advection[k],invsigma_adv[k])
 }
