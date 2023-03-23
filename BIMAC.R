@@ -576,7 +576,7 @@ data_matrix_postfilled_sd<-matrix(dmpV, nrow = nrow_r,ncol = ncol_r,byrow = T)
 if (smooth){
   data_matrix_postfilled_smoothed<-sapply(1:nrow_r, function(i){
     #take moving_average_points-elements around each point in a row
-    min_i<-max(0,(i-moving_average_points))
+    min_i<-max(1,(i-moving_average_points))
     max_i<-min(nrow_r,(i+moving_average_points))
     smoothed<-integer(ncol_r) #inizialise with zeros
     smoothed<-sapply(1:ncol_r, function(j){
