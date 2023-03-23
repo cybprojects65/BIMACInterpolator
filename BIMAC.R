@@ -367,6 +367,9 @@ length(values(ro))
 data_matrix_prefilled_vector<-as.vector(t(data_matrix_prefilled))
 data_matrix_prefilled_vector_to_save<-data_matrix_prefilled_vector
 values(ro)<-data_matrix_prefilled_vector_to_save
+if (length(land)>0){
+  data_matrix_prefilled_vector_to_save[land]<--9999
+}
 extent(ro)<-extent(asc_file)
 NAvalue(ro)<- -9999
 writeRaster(ro, filename=prior_data_output, format="ascii",overwrite=TRUE)
