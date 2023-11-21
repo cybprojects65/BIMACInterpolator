@@ -1012,17 +1012,16 @@ bimac_onland<-function(punctual_data_file,
                        max_y_boundingbox=90,
                        resolution=0.5
 ){
-  output<-bimac(punctual_data_file=punctual_data_file, 
-                currents_u_file=NA,
-                currents_v_file=NA,
-                analysis_depth=-1, usedepth = F, 
-                moving_average_points=moving_average_points,
-                fast_solving=fast_solving,
-                sd_advection_equation=-1,
-                min_x_boundingbox=min_x_boundingbox,max_x_boundingbox=max_x_boundingbox,min_y_boundingbox=min_y_boundingbox,max_y_boundingbox=max_y_boundingbox,resolution=resolution)
-  
-  return (
-    output[,c(1,3)]  
+    return (
+    bimac(punctual_data_file=punctual_data_file, 
+          currents_u_file=NA,
+          currents_v_file=NA,
+          analysis_depth=-1, usedepth = F, 
+          moving_average_points=moving_average_points,
+          fast_solving=fast_solving,
+          sd_advection_equation=-1,
+          min_x_boundingbox=min_x_boundingbox,max_x_boundingbox=max_x_boundingbox,min_y_boundingbox=min_y_boundingbox,max_y_boundingbox=max_y_boundingbox,resolution=resolution)
+    
   )
   
 }
