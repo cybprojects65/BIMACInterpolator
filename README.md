@@ -53,15 +53,15 @@ Example:
 The output is constituted of three files:
 An inverse-weighted distance interpolation serving as prior information for the MCMC model
 
-> prior_data_output = "./output/BIMAC_IDW_prior.asc"
+    prior_data_output = "./output/BIMAC_IDW_prior.asc"
 
 The final interpolation result (from the posterior distribution samples of the MCMC model)
 
-> posterior_data_output = "./output/BIMAC_interpolation.asc"
+    posterior_data_output = "./output/BIMAC_interpolation.asc"
 
 The standard deviation associated to each interpolation cell
 
-> posterior_data_output_sd = "./output/BIMAC_interpolation_sd.asc"
+    posterior_data_output_sd = "./output/BIMAC_interpolation_sd.asc"
 
 ## Marine data interpolation with current velocity only
 This function does not use bathymetry as a filter of land areas and interpolate over the entire bounding box enclosing the current-velocity files. The output is constituted of the same three files types described above.
