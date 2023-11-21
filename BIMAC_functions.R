@@ -13,6 +13,7 @@ bimac<-function(punctual_data_file,
                 max_y_boundingbox=NA,
                 resolution=NA
 ){
+  cat("\n###BIMAC started\n")  
   start_time <- Sys.time()
   library(raster)
   library ( R2jags )
@@ -21,6 +22,8 @@ bimac<-function(punctual_data_file,
   library(dplyr)
   library(digest)
   
+  #################INTERNAL FUNCTIONS#################
+  #calculate the number of significant digits of the resolution
   getSignDigits<-function(x){
     id<-1
     while (T){
@@ -31,28 +34,6 @@ bimac<-function(punctual_data_file,
       }
     }
     return(id)
-  }
-  
-  #DEFAULT EXAMPLE: Global scale temperature
-  #ASC files definitions
-  if (usedepth){  depth_file = "gebco_30sec_8.asc"}
-  
-  do_advection<-F
-  if (!is.na(currents_u_file) && !is.na(currents_v_file)) {do_advection<-T}
-  
-  #OUTPUT files will be: 
-  if (!dir.exists("./output/")){ dir.create("./output/")}
-  
-  prior_data_output = "./output/BIMAC_IDW_prior.asc"
-  posterior_data_output = "./output/BIMAC_interpolation.asc"
-  posterior_data_output_sd = "./output/BIMAC_interpolation_sd.asc"
-  
-  min_diffusion_coefficient = 0.00000000001
-  max_diffusion_coefficient = 0.0000000003
-  fast_solving<-T
-  smooth = F
-  if (moving_average_points!=0){
-    smooth = T
   }
   
   #Function to transform a raster file into a matrix
@@ -121,9 +102,100 @@ bimac<-function(punctual_data_file,
     
   }
   
+  #function to adapt depth information to the user-defined grid resolution
+  adapt_depth<-function(depth_file, resolution, min_x_in_raster, min_y_in_raster, max_x_in_raster, max_y_in_raster){
+    caching_string<-paste0(resolution,";",min_x_in_raster,";",min_y_in_raster,";",max_x_in_raster,";",max_y_in_raster)
+    sha<-sha1(caching_string)
+    cachedfile<-paste0(sha,"_",depth_file)
+    if (!file.exists(cachedfile)){
+      
+      asc_file<-raster(depth_file)
+      xseq<-seq(from=min_x_in_raster+(resolution/2),to=max_x_in_raster-(resolution/2),by=resolution)
+      yseq<-seq(from=min_y_in_raster+(resolution/2),to=max_y_in_raster-(resolution/2),by=resolution)
+      grid_of_points<-expand.grid(x = xseq, y = yseq) #combine the x and y coordinate to generate pairs
+      grid_values<-extract(x=asc_file,y=grid_of_points,method='simple') #extract raster values for the observations and the grid
+      grid_val<-grid_of_points
+      grid_val$value<-grid_values
+      ypoints<-unique(grid_of_points$y)
+      xpoints<-unique(grid_of_points$x)
+      ncol_r<-length(xpoints)
+      nrow_r<-length(ypoints)
+      values<-matrix(nrow = nrow_r,ncol = ncol_r,data = -9999)
+      row_counter<-1
+      for (y_c in 1:(nrow_r)){
+        yp<-ypoints[y_c]
+        row_rast<-grid_val[which(grid_val$y == yp),]
+        row_rast<-row_rast[order(row_rast$x),]
+        values[(nrow_r-row_counter+1),]<-row_rast$value[1:(ncol_r)]
+        row_counter<-row_counter+1
+      }
+      save(values,file=cachedfile)
+    }else{
+      cat("\t...Loading cached file",cachedfile,"\n")
+      load(cachedfile)
+    }
+    return(values)
+  }
+  
+  #mark the points falling on land or in locations to discard because with too high bathymetry
+  on_land<-function(i,j,resolution,min_x_in_raster,data_matrix,land){
+    x<-((j-1)*resolution)+min_x_in_raster
+    y<-max_y_in_raster-((i-1)*resolution)
+    index_in_vector<-((i-1)*ncol(data_matrix))+j
+    if ( (length(land)>0) && (index_in_vector%in%land) )
+      return(T)
+    else
+      return(F)
+  }
+  #################END OF INTERNAL FUNCTIONS#################
+  cat("** EXECUTING BIMAC with ") 
+  #DEFAULT EXAMPLE: Global scale temperature
+  #ASC files definitions
+  if (usedepth){
+    cat("'depth constraints ") 
+    cat("(Depth file to use ./gebco_30sec_8.asc)' ")
+    depth_file = "gebco_30sec_8.asc"
+  }else{
+    cat("'no depth constraints' ") 
+  }
+  
+  do_advection<-F
+  if (!is.na(currents_u_file) && !is.na(currents_v_file)) {
+    cat("'Advection-Diffusion constraints ") 
+    cat("(Stationary Advection-Diffusion equation will be used)' ")
+    do_advection<-T
+  }else{
+    cat("'no Advection-Diffusion constraints' ") 
+  }
+  
+  cat("**\n")
+  
+  #OUTPUT files will be: 
+  if (!dir.exists("./output/")){ 
+    cat("Output will be written to ./output/\n")
+    dir.create("./output/")
+  }
+  
+  prior_data_output = "./output/BIMAC_IDW_prior.asc"
+  posterior_data_output = "./output/BIMAC_interpolation.asc"
+  posterior_data_output_sd = "./output/BIMAC_interpolation_sd.asc"
+  cat("Output files will be:\n")
+  cat("\tprior_data_output:",prior_data_output,"\n")
+  cat("\tposterior_data_output:",posterior_data_output,"\n")
+  cat("\tposterior_data_output_sd:",posterior_data_output_sd,"\n")
+  
+  min_diffusion_coefficient = 0.00000000001
+  max_diffusion_coefficient = 0.0000000003
+  fast_solving<-T
+  smooth = F
+  if (moving_average_points!=0){
+    cat("Smoothing will be performed with",moving_average_points,"neighbors\n")
+    smooth = T
+  }
+  
   if (do_advection){
-    #Step 1 - Create matrices out of the input files
-    cat("Reading data files\n")
+    #Create matrices out of the input files
+    cat("Reading current-velocity files and setting the analysis bounding box based on the files\n")
     currents_u_matrix<-asc_to_matrix(currents_u_file)
     currents_v_matrix<-asc_to_matrix(currents_v_file)
     asc_raster_file<-currents_u_file
@@ -136,9 +208,11 @@ bimac<-function(punctual_data_file,
     if (!check_file_consistency(currents_u_file,currents_v_file)){
       stop("ERROR: HETEROGENEOUS INPUT FILES - PLEASE PROVIDE U-V SPATIALLY ALIGNED FILES AT THE SAME RESOLUTION\n")
     }else{
-      cat("   Input files are consistent\n")
+      cat("\tInput current-velocity files are consistent\n")
     }
   }else{
+    cat("Adjusting boundaries to match the resolution\n")
+    cat("\tOriginal boundaries (xmin,xmax,ymin,ymax):",min_x_boundingbox,",",max_x_boundingbox,",",min_y_boundingbox,",",max_y_boundingbox,"\n")
     min_x_in_raster<-min_x_boundingbox
     max_x_in_raster<-max_x_boundingbox
     min_y_in_raster<-min_y_boundingbox
@@ -152,59 +226,27 @@ bimac<-function(punctual_data_file,
     max_y_in_raster<-round(max_y_in_raster,resdigits)
     max_y_in_raster<-( max_y_in_raster-(max_y_in_raster%%resolution) )+resolution
     min_y_in_raster<-( min_y_in_raster-(min_y_in_raster%%resolution) )-resolution
+    cat("\tRecalculated boundaries (xmin,xmax,ymin,ymax):",min_x_in_raster,",",max_x_in_raster,",",min_y_in_raster,",",max_y_in_raster,"\n")
   }
   
-  
   if (usedepth){
-    adapt_depth<-function(depth_file, resolution, min_x_in_raster, min_y_in_raster, max_x_in_raster, max_y_in_raster){
-      caching_string<-paste0(resolution,";",min_x_in_raster,";",min_y_in_raster,";",max_x_in_raster,";",max_y_in_raster)
-      sha<-sha1(caching_string)
-      cachedfile<-paste0(sha,"_",depth_file)
-      if (!file.exists(cachedfile)){
-        
-        asc_file<-raster(depth_file)
-        xseq<-seq(from=min_x_in_raster+(resolution/2),to=max_x_in_raster-(resolution/2),by=resolution)
-        yseq<-seq(from=min_y_in_raster+(resolution/2),to=max_y_in_raster-(resolution/2),by=resolution)
-        grid_of_points<-expand.grid(x = xseq, y = yseq) #combine the x and y coordinate to generate pairs
-        grid_values<-extract(x=asc_file,y=grid_of_points,method='simple') #extract raster values for the observations and the grid
-        grid_val<-grid_of_points
-        grid_val$value<-grid_values
-        ypoints<-unique(grid_of_points$y)
-        xpoints<-unique(grid_of_points$x)
-        ncol_r<-length(xpoints)
-        nrow_r<-length(ypoints)
-        values<-matrix(nrow = nrow_r,ncol = ncol_r,data = -9999)
-        row_counter<-1
-        for (y_c in 1:(nrow_r)){
-          yp<-ypoints[y_c]
-          row_rast<-grid_val[which(grid_val$y == yp),]
-          row_rast<-row_rast[order(row_rast$x),]
-          values[(nrow_r-row_counter+1),]<-row_rast$value[1:(ncol_r)]
-          row_counter<-row_counter+1
-        }
-        save(values,file=cachedfile)
-      }else{
-        cat("...Loading cached file",cachedfile,"\n")
-        load(cachedfile)
-      }
-      return(values)
-    }
+    cat("Adjusting depth to the analysis grid\n")
     depth_matrix<-adapt_depth(depth_file, resolution, min_x_in_raster, min_y_in_raster, max_x_in_raster, max_y_in_raster)
     
-    #Step 2 - Retrieve points on land as positive bathymetry points
-    cat("Retrieving land\n")
+    #Retrieve points on land as positive bathymetry points
+    cat("Retrieving land/too high locations\n")
     land<-which(as.vector(t(depth_matrix))>=analysis_depth)
     if (length(land)==0) {
       land<-c()
-      cat("NOTE: NO LAND LOCATIONS ARE PRESENT\n")
+      cat("NOTE: NO LAND/TOO HIGH LOCATIONS ARE PRESENT\n")
     }else if (length(land)==length(as.vector(t(depth_matrix)))) {
-      stop("ERROR: No point at the given depth is present in the area, please change the analysis depth input") 
+      stop("ERROR: No point at the given depth is present in the area, please change the analysis depth input\n") 
     }
   }else{
     land<-c()
   }
   
-  #Step 3 - Retrieve observation points, filter those falling in the velocity bounding box, and assign them to a regular grid filled with NA values
+  #Retrieve observation points, filter those falling in the velocity bounding box, and assign them to a regular grid filled with NA values
   cat("Retrieving observation points\n")
   #create the grid
   xseq<-seq(from=min_x_in_raster+(resolution/2),to=max_x_in_raster-(resolution/2),by=resolution)
@@ -220,14 +262,14 @@ bimac<-function(punctual_data_file,
   ncol_r<-length(xpoints)
   nrow_r<-length(ypoints)
   #delete points falling out of the velocity bounding box
-  cat("Filtering observation points\n")
+  cat("Filtering observation points by removing points outside of the analysis bounding box\n")
   punctual_data_within_area<-punctual_data[which(punctual_data$x>min_x_in_raster & punctual_data$x<max_x_in_raster),]
   punctual_data_within_area<-punctual_data_within_area[which(punctual_data_within_area$y>min_y_in_raster & punctual_data_within_area$y<max_y_in_raster),]
   if (dim(punctual_data_within_area)[1]==0){
     stop("ERROR: NO POINT PRESENT IN THE ANALYSIS AREA\n")
   }
-  #calculate the matrix indices of the observations
-  
+  cat("Calculating coordinate indices in the grid..\n")
+  #calculates the matrix indices of the observations
   coord_to_index<-sapply(1:nrow(punctual_data_within_area), function(i){
     x<-punctual_data_within_area$x[i]
     idx<-0
@@ -249,19 +291,16 @@ bimac<-function(punctual_data_file,
     }
     return(c(idx,idy))
   },simplify = T)
-  
-  punctual_data_within_area$x_i<-t(coord_to_index)[,1]#round((punctual_data_within_area$x-min_x_in_raster)/resolution)+1
-  punctual_data_within_area$y_i<-t(coord_to_index)[,2]#round((max_y_in_raster-punctual_data_within_area$y)/resolution)+1
-  
-  #punctual_data_within_area$y_i<-round((max_y_in_raster-punctual_data_within_area$y)/resolution)+1
-  
+  punctual_data_within_area$x_i<-t(coord_to_index)[,1]
+  punctual_data_within_area$y_i<-t(coord_to_index)[,2]
   n_punctual_data<-dim(punctual_data_within_area)[1]
   data_matrix<-matrix(nrow = nrow_r,ncol = ncol_r,data = NA)
   #assign the observations to matrix elements
   distinct_observation_pairs<-distinct(data.frame(x_i=punctual_data_within_area$x_i,y_i=punctual_data_within_area$y_i))
   distinct_observation_pairs_xyv<-list()
   
-  cat("Transforming observations into a matrix through IDW\n")
+  
+  cat("Transforming the observations into a matrix through a first IDW (grid-snapping)...\n")
   inserted_observations<-1
   for (pair in 1:nrow(distinct_observation_pairs)){
     xi = distinct_observation_pairs[pair,]$x_i
@@ -286,8 +325,10 @@ bimac<-function(punctual_data_file,
   max_real_value<-max(data_matrix,na.rm = T)
   distinct_observation_pairs_xyv <- ldply(distinct_observation_pairs_xyv, data.frame)
   
-  #Step 4 - calculate the average proximity between the points to assess a radius for prior value averaging
-  cat("Calculating average proximity between the points\n")
+  
+  #Calculate the average proximity between the points to assess a radius for prior value averaging
+  cat("Estimating average proximity between the points...\n")
+  #estimates the minimum mutual distances between the points
   min_distances<-sapply(1:nrow(distinct_observation_pairs_xyv), function(i){
     x<-distinct_observation_pairs_xyv$x_m[i]
     y<-distinct_observation_pairs_xyv$y_m[i]
@@ -296,7 +337,6 @@ bimac<-function(punctual_data_file,
     dist<-sqrt( (ddx*ddx) + (ddy*ddy))
     return(min(dist))
   },simplify = T)
-  
   #use the geometric mean
   log_mean_min_dist<-mean(log(min_distances[which(min_distances>0)]))
   log_sd_min_dist<-sd(log(min_distances[which(min_distances>0)]))
@@ -304,22 +344,12 @@ bimac<-function(punctual_data_file,
   upper_limit_min_distances_index<-round(upper_limit_min_distances/resolution)
   cat("Proximity range is",upper_limit_min_distances,"deg","(=",upper_limit_min_distances_index,"indices)","\n")
   
-  #Step 5 - calculate prior values of the quantity through inverse weighting
-  cat("Inverse weighting\n")
+  
+  #Calculate prior values of the quantity through inverse weighting
+  cat("Executing the second inverse weighted distance interpolation...\n")
   #data_matrix_prefilled is the matrix of prior values
   data_matrix_prefilled<-data_matrix
-  
-  on_land<-function(i,j,resolution,min_x_in_raster,data_matrix,land){
-    x<-((j-1)*resolution)+min_x_in_raster
-    y<-max_y_in_raster-((i-1)*resolution)
-    index_in_vector<-((i-1)*ncol(data_matrix))+j
-    if ( (length(land)>0) && (index_in_vector%in%land) )
-      return(T)
-    else
-      return(F)
-  }
-  
-  cat("   Filling gaps around the observations\n")
+  cat("\tFilling gaps around the real observations\n")
   #for each NA element (=without observation) retrieve observation points within the proximity range; calculate the inverse-weighted values and assign the weighted average
   data_matrix_prefilled<-sapply(1:nrow_r, function(i){
     data_matrix_prefilled_row<-vector()
@@ -360,8 +390,8 @@ bimac<-function(punctual_data_file,
   #adjust the matrix after the sapply, which returns the rows as columns
   data_matrix_prefilled<-t(data_matrix_prefilled)
   
-  #Step 6 - Fill the holes' matrix holes through an iterative gap-filling process
-  cat("   Averaging gaps\n")
+  cat("\tFilling gaps around the estimated observations until convergence...\n")
+  #Fill the holes' matrix holes through an iterative gap-filling process
   cat("Iterating.. ")
   still_elements_to_fill<-T
   iterations<-1
@@ -430,8 +460,8 @@ bimac<-function(punctual_data_file,
   }
   cat("\n")
   
-  #Step 7 - save the inverse weighted map to a file
-  cat("Saving the inverse weighted map\n")
+  #Save the inverse weighted map to a file
+  cat("Saving the inverse weighted prior map to",prior_data_output,"\n")
   ro <- raster(ncol=ncol_r, nrow=nrow_r)
   length(values(ro))
   data_matrix_prefilled_vector<-as.vector(t(data_matrix_prefilled))
@@ -450,17 +480,21 @@ bimac<-function(punctual_data_file,
   }
   NAvalue(ro)<- -9999
   writeRaster(ro, filename=prior_data_output, format="ascii",overwrite=TRUE)
-  
   cat("Inverse weighted map saved\n")
+  end_time_idw <- Sys.time()
+  cat("Elapsed Time for Data Preparation + IDW:\n")
+  print(end_time_idw-start_time)
   
-  #Step 8 - solve the advection equation and recalculate the grid-matrix values
-  cat("Solving data network...\n")
+  #Solve the advection equation and recalculate the grid-matrix values
+  cat("Solving the data network graph through MCMC\n")
+  cat("\tData preparation\n")
   #data_matrix_postfilled is the posterior values' matrix
   data_matrix_postfilled<-matrix(nrow = nrow_r,ncol = ncol_r,data = 1)
   data_matrix_postfilled<-as.vector(data_matrix_postfilled)
   N<-length(data_matrix_postfilled)
   #calculate the standard deviation of the observation values
   prior_sd<-sd(data_matrix,na.rm=T)
+  
   data_vector<-as.vector(t(data_matrix))
   if (length(which(!is.na(data_vector)))==0){
     stop("ERROR IN THE DATA: NO REAL OBSERVATION PRESENT IN THE AREA!")
@@ -478,25 +512,27 @@ bimac<-function(punctual_data_file,
   zeros<-integer(length(is_true_value))
   #define velocity vectors to use in the advection function
   if (do_advection){
+    cat("\tCurrent-velocity vector preparation\n")
     ux<-as.vector(t(currents_u_matrix))
     uy<-as.vector(t(currents_v_matrix))
+    #define the values for which calculating advection is possible
+    valid_index_for_advection<-matrix(nrow = nrow_r,ncol = ncol_r,data = 1)
+    # exclude the the first colum
+    valid_index_for_advection[,1]<-0
+    # exclude the first row
+    valid_index_for_advection[1,]<-0
+    # exclude the the last colum
+    valid_index_for_advection[,ncol_r]<-0
+    # exclude the the last row
+    valid_index_for_advection[nrow_r,]<-0
+    #transform the matrix into an array for easier modelling
+    valid_index_for_advection_vector<-as.vector(t(valid_index_for_advection))
   }
-  #define the values for which calculating advection is possible
-  valid_index_for_advection<-matrix(nrow = nrow_r,ncol = ncol_r,data = 1)
-  # exclude the the first colum
-  valid_index_for_advection[,1]<-0
-  # exclude the first row
-  valid_index_for_advection[1,]<-0
-  # exclude the the last colum
-  valid_index_for_advection[,ncol_r]<-0
-  # exclude the the last row
-  valid_index_for_advection[nrow_r,]<-0
-  #transform the matrix into an array for easier modelling
-  valid_index_for_advection_vector<-as.vector(t(valid_index_for_advection))
   
   #exclude land points from the data
   land_no_values<-c()
   if (length(land)>0){
+    cat("\tBathymetry-excluded locations assessment\n")
     #exclude land points from the non-observation values indexes
     values_to_estimate_idx<-values_to_estimate_idx[-which(values_to_estimate_idx%in%land)]
     #set land fluid velocity to 0
@@ -505,9 +541,9 @@ bimac<-function(punctual_data_file,
       uy[land]<-0
       ux[which(is.na(ux))]<-0
       uy[which(is.na(uy))]<-0
+      #exclude land points from being involved in advection calculation, otherwise coastal underestimation can occur
+      valid_index_for_advection_vector[land]<-0
     }
-    #exclude land points from being involved in advection calculation, otherwise coastal underestimation can occur
-    valid_index_for_advection_vector[land]<-0
     #exclude possible observation values falling on land from the land indexes - these should be used as likelihood data
     true_in_land<-which(land%in%real_values_idx)
     if (length(true_in_land)>0){
@@ -520,10 +556,12 @@ bimac<-function(punctual_data_file,
     land_no_values<-c()
   }
   
-  #select valid indexes on which calculate the advection equation 
-  valid_index_for_advection_vector_idx<-which(valid_index_for_advection_vector!=0)
+  if (do_advection){
+    #select valid indexes on which calculate the advection equation 
+    valid_index_for_advection_vector_idx<-which(valid_index_for_advection_vector!=0)
+  }
   
-  #Set the input parameters of the model
+  #Input parameters of the complete model
   #prior_sd = standard deviation of the observation values
   #data_matrix_prefilled_vector = priors' vector, zero for land values
   #min_real_value = minimum observation value
@@ -537,8 +575,10 @@ bimac<-function(punctual_data_file,
   #values_to_estimate_idx = vector indices of the values to estimate
   #valid_index_for_advection_vector_idx = indices of values valid for the advection equation
   #land_no_values = indices of land locations excluding those containing real observations
+  
+  
   if(length(land_no_values)>0 && do_advection){
-    cat("Solving for bathymetry below",analysis_depth,"m with currents\n")
+    cat("Solving the model for bathymetry at",analysis_depth,"m with currents\n")
     jags.data <- list ("data_matrix_prefilled_vector",
                        "min_real_value","max_real_value",
                        "ux","uy",
@@ -616,7 +656,7 @@ bimac<-function(punctual_data_file,
             }"
   }else{
     if (do_advection){
-      cat("Solving for unbounded area with currents\n")
+      cat("Solving the model for unbounded area with currents\n")
       
       jags.data <- list ("data_matrix_prefilled_vector",
                          "min_real_value","max_real_value",
@@ -686,7 +726,7 @@ bimac<-function(punctual_data_file,
               }
 
 }"}else if(length(land_no_values)>0){
-  cat("Solving for below",analysis_depth,"m bathymetry\n")
+  cat("Solving the model for bathymetry at",analysis_depth,"m\n")
   jags.data <- list ("data_matrix_prefilled_vector",
                      "min_real_value","max_real_value",
                      "prior_sd",
@@ -733,9 +773,9 @@ bimac<-function(punctual_data_file,
           }
           
           }"
-
+  
 }else{
-  cat("Solving for land or boundary-free area without currents\n")
+  cat("Solving the model for land or boundary-free area without currents\n")
   jags.data <- list ("data_matrix_prefilled_vector",
                      "min_real_value","max_real_value",
                      "prior_sd",
@@ -777,189 +817,192 @@ bimac<-function(punctual_data_file,
           
           }"
 }
-
+    
   }
-
-
-end_time_idw <- Sys.time()
-cat("Elapsed Data Preparation + IDW\n")
-print(end_time_idw-start_time)
-
-#write the BUGS model to a file
-JAGSFILE =" r2ssb.bug "
-cat (Model , file = JAGSFILE )
-
-if (fast_solving){
-  Nchains = 1
-  Nburnin = 10
-  Niter = 100
-  Nthin = 5 
-}else{
-  Nchains = 1 # number of Markov chains - to account for non - ergodic convergence
-  Nburnin = 100 # burn -in iterations - n. of initial iterations to discard
-  Niter = 1000 # total n. of iterations
-  Nthin = 10 # thinning - take every 10 samples to lower the dependency among the samples
-}
-
-#Run the Gibbs sampling
-start_time_jags <- Sys.time()
-jagsfit <- jags ( data = jags.data , working.directory=NULL , inits =NULL , jags.params,
-                  model.file = JAGSFILE , n.chains=Nchains, n.thin=Nthin , n.iter=Niter , n.burnin=Nburnin )
-end_time_jags <- Sys.time()
-cat("Elapsed Jags\n")
-print(end_time_jags-start_time_jags)
-
-#retrieve the posterior vector
-dmp<-jagsfit$BUGSoutput$sims.list$P
-#the posterior vector has one column for each P element, samples from the gibbs sampling are contained in each column
-#the mean extract the optimal value according to the Monte Carlo integration theorem
-dmpC<-colMeans(dmp)
-dmpV<-apply(dmp, 2, sd)
-if (do_advection){
-  diffusion_coefficient<-mean(jagsfit$BUGSoutput$sims.list$D_p)
-  cat("Estimated Diffusion coefficient:",diffusion_coefficient,"\n")
-}
-#set land points to NA
-if(length(land)>0){
-  dmpC[land]<-NA
-  dmpV[land]<-NA
-}
-
-#Step 9 - distribution smoothing
-cat("Smoothing\n")
-data_matrix_postfilled<-matrix(dmpC, nrow = nrow_r,ncol = ncol_r,byrow = T)
-data_matrix_postfilled_sd<-matrix(dmpV, nrow = nrow_r,ncol = ncol_r,byrow = T)
-
-if (smooth){
-  data_matrix_postfilled_smoothed<-sapply(1:nrow_r, function(i){
-    #take moving_average_points-elements around each point in a row
-    #inizialise with zeros
-    smoothed<-integer(ncol_r)
-    min_i<-max(1,(i-moving_average_points))
-    max_i<-min(nrow_r,(i+moving_average_points))
-    smoothedsub<-sapply(1:(ncol_r), function(j){
-      if (is.na(data_matrix_postfilled[i,j]))
-        return(NA)
-      else{
-        #take moving_average_points-elements around each point along the column
-        min_j<-max(1,(j-moving_average_points))
-        max_j<-min(ncol_r,(j+moving_average_points))
-        #extract the submatrix
-        sub_matrix<-data_matrix_postfilled[min_i:max_i,min_j:max_j]
-        sub_vector<-c(as.vector(sub_matrix),data_matrix_postfilled[i,j])
-        avg<-mean(sub_vector,na.rm=T)
-        return(avg)
-      }
+  
+  cat("Executing JAGS...")
+  #write the BUGS model to a file
+  JAGSFILE =" r2ssb.bug "
+  cat (Model , file = JAGSFILE )
+  
+  if (fast_solving){
+    cat("with few iterations..\n")
+    Nchains = 1
+    Nburnin = 10
+    Niter = 100
+    Nthin = 5 
+  }else{
+    cat("with many iterations..\n")
+    Nchains = 1 # number of Markov chains - to account for non - ergodic convergence
+    Nburnin = 100 # burn -in iterations - n. of initial iterations to discard
+    Niter = 1000 # total n. of iterations
+    Nthin = 10 # thinning - take every 10 samples to lower the dependency among the samples
+  }
+  
+  #Run the Gibbs sampling
+  start_time_jags <- Sys.time()
+  jagsfit <- jags ( data = jags.data , working.directory=NULL , inits =NULL , jags.params,
+                    model.file = JAGSFILE , n.chains=Nchains, n.thin=Nthin , n.iter=Niter , n.burnin=Nburnin )
+  end_time_jags <- Sys.time()
+  cat("Elapsed Time for Jags:\n")
+  print(end_time_jags-start_time_jags)
+  
+  #retrieve the posterior vector
+  dmp<-jagsfit$BUGSoutput$sims.list$P
+  #the posterior vector has one column for each P element, samples from the gibbs sampling are contained in each column
+  #the mean extract the optimal value according to the Monte Carlo integration theorem
+  dmpC<-colMeans(dmp)
+  dmpV<-apply(dmp, 2, sd)
+  if (do_advection){
+    diffusion_coefficient<-mean(jagsfit$BUGSoutput$sims.list$D_p)
+    cat("Estimated Diffusion coefficient:",diffusion_coefficient,"\n")
+  }
+  #set land points to NA
+  if(length(land)>0){
+    dmpC[land]<-NA
+    dmpV[land]<-NA
+  }
+  
+  #distribution smoothing
+  data_matrix_postfilled<-matrix(dmpC, nrow = nrow_r,ncol = ncol_r,byrow = T)
+  data_matrix_postfilled_sd<-matrix(dmpV, nrow = nrow_r,ncol = ncol_r,byrow = T)
+  
+  if (smooth){
+    cat("Smoothing the estimated distribution matrix and its SD with",moving_average_points,"neighbors..\n")
+    data_matrix_postfilled_smoothed<-sapply(1:nrow_r, function(i){
+      #take moving_average_points-elements around each point in a row
+      #inizialise with zeros
+      smoothed<-integer(ncol_r)
+      min_i<-max(1,(i-moving_average_points))
+      max_i<-min(nrow_r,(i+moving_average_points))
+      smoothedsub<-sapply(1:(ncol_r), function(j){
+        if (is.na(data_matrix_postfilled[i,j]))
+          return(NA)
+        else{
+          #take moving_average_points-elements around each point along the column
+          min_j<-max(1,(j-moving_average_points))
+          max_j<-min(ncol_r,(j+moving_average_points))
+          #extract the submatrix
+          sub_matrix<-data_matrix_postfilled[min_i:max_i,min_j:max_j]
+          sub_vector<-c(as.vector(sub_matrix),data_matrix_postfilled[i,j])
+          avg<-mean(sub_vector,na.rm=T)
+          return(avg)
+        }
+      },simplify = T)
+      smoothed[1:(ncol_r)]<-smoothedsub
+      return(smoothed)
     },simplify = T)
-    smoothed[1:(ncol_r)]<-smoothedsub
-    return(smoothed)
-  },simplify = T)
-  
-  data_matrix_postfilled_smoothed_sd<-sapply(1:nrow_r, function(i){
-    #take moving_average_points-elements around each point in a row
-    #inizialise with zeros
-    smoothed<-integer(ncol_r)
-    min_i<-max(1,(i-moving_average_points))
-    max_i<-min(nrow_r,(i+moving_average_points))
-    smoothedsub<-sapply(1:(ncol_r), function(j){
-      if (is.na(data_matrix_postfilled_sd[i,j]))
-        return(NA)
-      else{
-        #take moving_average_points-elements around each point along the column
-        min_j<-max(1,(j-moving_average_points))
-        max_j<-min(ncol_r,(j+moving_average_points))
-        #extract the submatrix
-        sub_matrix<-data_matrix_postfilled_sd[min_i:max_i,min_j:max_j]
-        sub_vector<-c(as.vector(sub_matrix),data_matrix_postfilled_sd[i,j])
-        avg<-mean(sub_vector,na.rm=T)
-        return(avg)
-      }
+    
+    data_matrix_postfilled_smoothed_sd<-sapply(1:nrow_r, function(i){
+      #take moving_average_points-elements around each point in a row
+      #inizialise with zeros
+      smoothed<-integer(ncol_r)
+      min_i<-max(1,(i-moving_average_points))
+      max_i<-min(nrow_r,(i+moving_average_points))
+      smoothedsub<-sapply(1:(ncol_r), function(j){
+        if (is.na(data_matrix_postfilled_sd[i,j]))
+          return(NA)
+        else{
+          #take moving_average_points-elements around each point along the column
+          min_j<-max(1,(j-moving_average_points))
+          max_j<-min(ncol_r,(j+moving_average_points))
+          #extract the submatrix
+          sub_matrix<-data_matrix_postfilled_sd[min_i:max_i,min_j:max_j]
+          sub_vector<-c(as.vector(sub_matrix),data_matrix_postfilled_sd[i,j])
+          avg<-mean(sub_vector,na.rm=T)
+          return(avg)
+        }
+      },simplify = T)
+      smoothed[1:(ncol_r)]<-smoothedsub
+      return(smoothed)
     },simplify = T)
-    smoothed[1:(ncol_r)]<-smoothedsub
-    return(smoothed)
-  },simplify = T)
+    
+    
+    #transpose since sapply returns rows as columns
+    data_matrix_postfilled_smoothed<-t(data_matrix_postfilled_smoothed)
+    data_matrix_postfilled_smoothed_sd<-t(data_matrix_postfilled_smoothed_sd)
+    #substitute the smoothed matrix to the posterior matrix
+    data_matrix_postfilled<-data_matrix_postfilled_smoothed
+    data_matrix_postfilled_sd<-data_matrix_postfilled_smoothed_sd
+    cat("The matrices have been smoothed\n")
+  }
   
+  cat("Saving the JAGS estimated matrix as a raster file\n")
+  #save the posterior probability matrix
+  ro_p <- raster(ncol=ncol_r, nrow=nrow_r)
+  ro_p_sd <- raster(ncol=ncol_r, nrow=nrow_r)
+  values_vec_post<-as.vector(t(data_matrix_postfilled))
+  values_vec_post_sd<-as.vector(t(data_matrix_postfilled_sd))
+  if (length(land)>0){
+    values_vec_post[land]<--9999
+    values_vec_post_sd[land]<--9999
+  }
   
-  #transpose since sapply returns rows as columns
-  data_matrix_postfilled_smoothed<-t(data_matrix_postfilled_smoothed)
-  data_matrix_postfilled_smoothed_sd<-t(data_matrix_postfilled_smoothed_sd)
-  #substitute the smoothed matrix to the posterior matrix
-  data_matrix_postfilled<-data_matrix_postfilled_smoothed
-  data_matrix_postfilled_sd<-data_matrix_postfilled_smoothed_sd
-  cat("Saving smoothed map...\n")
-}
-
-#Step 10 - save the posterior probability matrix
-ro_p <- raster(ncol=ncol_r, nrow=nrow_r)
-ro_p_sd <- raster(ncol=ncol_r, nrow=nrow_r)
-values_vec_post<-as.vector(t(data_matrix_postfilled))
-values_vec_post_sd<-as.vector(t(data_matrix_postfilled_sd))
-if (length(land)>0){
-  values_vec_post[land]<--9999
-  values_vec_post_sd[land]<--9999
-}
-
-values(ro_p)<-values_vec_post
-if (do_advection){
-  extent(ro_p)<-extent(asc_file)
-}else{
-  extent(ro_p)<-extent( min_x_in_raster,
-                        max_x_in_raster,
-                        min_y_in_raster,
-                        max_y_in_raster)
-}
-
-NAvalue(ro_p)<- -9999
-writeRaster(ro_p, filename=posterior_data_output, format="ascii",overwrite=TRUE)
-
-values(ro_p_sd)<-values_vec_post_sd
-
-if (do_advection){
-  extent(ro_p_sd)<-extent(asc_file)
-}else{
-  extent(ro_p_sd)<-extent( min_x_in_raster,
-                           max_x_in_raster,
-                           min_y_in_raster,
-                           max_y_in_raster)
-}
-
-NAvalue(ro_p_sd)<- -9999
-writeRaster(ro_p_sd, filename=posterior_data_output_sd, format="ascii",overwrite=TRUE)
-
-prior<-as.vector(t(data_matrix_prefilled))
-posterior<-as.vector(t(data_matrix_postfilled))
-
-#evaluate the difference between posterior and prior probabilities
-if (length((land)>0)){
-  prior[land]<-NA
-  posterior[land]<-NA
-}
-diff<-posterior-prior
-if (length((land)>0)){
-  diff<-abs(diff[-which(is.na(posterior-prior))])
-  diff_rel<-diff/abs(posterior[-land])
-}else{
-  diff<-abs(diff)
-  diff_rel<-diff/abs(posterior)
-}
-cat("Maximum absolute discrepancy between prior and posterior distributions",max(diff),"\n")
-cat("Mean relative discrepancy",100*mean(diff_rel),"%\n")
-cat("Sd of the discrepancy",sd(diff),"\n")
-end_time <- Sys.time()
-cat("Done.\n")
-cat("Elapsed.\n")
-print(end_time-start_time)
-
-final_output<-data.frame(
-  prior_data_output,
-  posterior_data_output,
-  posterior_data_output_sd
-)
-final_output[1,]<-c(prior_data_output,
-                    posterior_data_output,
-                    posterior_data_output_sd)
-
-return(final_output)
+  values(ro_p)<-values_vec_post
+  if (do_advection){
+    extent(ro_p)<-extent(asc_file)
+  }else{
+    extent(ro_p)<-extent( min_x_in_raster,
+                          max_x_in_raster,
+                          min_y_in_raster,
+                          max_y_in_raster)
+  }
+  
+  NAvalue(ro_p)<- -9999
+  writeRaster(ro_p, filename=posterior_data_output, format="ascii",overwrite=TRUE)
+  cat("JAGS estimated matrix saved to",posterior_data_output,"\n")
+  
+  cat("Saving the JAGS estimated SD matrix as a raster file\n")
+  values(ro_p_sd)<-values_vec_post_sd
+  if (do_advection){
+    extent(ro_p_sd)<-extent(asc_file)
+  }else{
+    extent(ro_p_sd)<-extent( min_x_in_raster,
+                             max_x_in_raster,
+                             min_y_in_raster,
+                             max_y_in_raster)
+  }
+  
+  NAvalue(ro_p_sd)<- -9999
+  writeRaster(ro_p_sd, filename=posterior_data_output_sd, format="ascii",overwrite=TRUE)
+  
+  prior<-as.vector(t(data_matrix_prefilled))
+  posterior<-as.vector(t(data_matrix_postfilled))
+  cat("JAGS estimated SD matrix saved to",posterior_data_output_sd,"\n")
+  
+  cat("Calculating the average difference between the prior and posterior matrices..\n")
+  #evaluate the difference between posterior and prior probabilities
+  if (length((land)>0)){
+    prior[land]<-NA
+    posterior[land]<-NA
+  }
+  diff<-posterior-prior
+  if (length((land)>0)){
+    diff<-abs(diff[-which(is.na(posterior-prior))])
+    diff_rel<-diff/abs(posterior[-land])
+  }else{
+    diff<-abs(diff)
+    diff_rel<-diff/abs(posterior)
+  }
+  
+  cat("\tMaximum absolute discrepancy between prior and posterior distributions",max(diff),"\n")
+  cat("\tMean relative discrepancy",100*mean(diff_rel),"%\n")
+  cat("\tSD of the discrepancy",sd(diff),"\n")
+  end_time <- Sys.time()
+  cat("BIMAC has finished.\n")
+  cat("Total elapsed Time:\n")
+  print(end_time-start_time)
+  
+  final_output<-data.frame(
+    prior_data_output,
+    posterior_data_output,
+    posterior_data_output_sd
+  )
+  final_output[1,]<-c(prior_data_output,
+                      posterior_data_output,
+                      posterior_data_output_sd)
+  cat("###BIMAC ended\n\n")  
+  return(final_output)
 }
 
 bimac_currents_depthboundaries<-function(punctual_data_file,
@@ -1012,7 +1055,7 @@ bimac_onland<-function(punctual_data_file,
                        max_y_boundingbox=90,
                        resolution=0.5
 ){
-    return (
+  return (
     bimac(punctual_data_file=punctual_data_file, 
           currents_u_file=NA,
           currents_v_file=NA,
