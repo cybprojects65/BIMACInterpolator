@@ -1,3 +1,4 @@
+
 # BIMAC - Bayesian Interpolation Model with Advection-diffusion Constraint
 
 An advection equation solver for oceanic parameter spatial interpolation based on Jags and Gibbs sampling. Internally uses the stationary advection-diffusion equation as a constraint.
@@ -6,7 +7,9 @@ An advection equation solver for oceanic parameter spatial interpolation based o
 
 ![](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png) *Figure 1. Example of global scale temperature layer estimated from observation data from the Argo network.*
 
-The software is an all-in-one script containing all functions (BIMAC_functions.R). call_bimac_examples.R contains all examples. BIMAC comes with four internal models corresponding to different input types available to the user.
+The software is an all-in-one script containing all functions (BIMAC_functions.R).
+
+[call_bimac_examples.R](https://github.com/cybprojects65/BIMACInterpolator/blob/main/call_bimac_examples.R "call_bimac_examples.R") contains all examples. BIMAC comes with four internal models corresponding to different input types available to the user.
 
 ## Marine data interpolation with current velocity and depth constraints
 
