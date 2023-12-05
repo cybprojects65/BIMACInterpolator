@@ -3,7 +3,7 @@
 
 An advection equation solver for oceanic parameter spatial interpolation based on Jags and Gibbs sampling. Internally uses the stationary advection-diffusion equation as a constraint.
 
-*How to cite:* Coro, G. (2023). An Open Science oriented Bayesian interpolation model for marine parameter observations. Environmental Modelling & Software, 105901.
+*How to cite:* Coro, G. (2023). An Open Science oriented Bayesian interpolation model for marine parameter observations. Environmental Modelling & Software, 105901. https://doi.org/10.1016/j.envsoft.2023.105901
 
 ![](https://github.com/cybprojects65/JagsOceanicSpatialInterpolator/blob/main/global_scale_example.png) *Figure 1. Example of global scale temperature layer estimated from observation data from the Argo network.*
 
