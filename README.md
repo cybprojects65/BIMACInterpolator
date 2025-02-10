@@ -132,7 +132,7 @@ file.rename("./output","./output_no_currents_yes_depth")
 
 ## Generic data interpolation with no constraints - Land data interpolation
 
-This function does not constraints for the interpolation. It uses the MCMC model to drive the final estimate around the prior interpolation. It could be used for quickly interpolating land data. The output is constituted of the same three files types described above.
+This function does not constraints the interpolation. It uses the MCMC model to drive the final estimate around the prior interpolation. It could be used for quickly interpolating land data. The output is constituted of the same three files types described above.
 
 Example:
 
@@ -147,6 +147,10 @@ output<-bimac_onland(punctual_data_file,
                resolution=0.5)
 file.rename("./output","./output_no_currents_no_depth")
 ```
+
+## Fully working example with pre and post processing
+
+An example with pre-processing and post-processing hints to facilitate the management of BIMAC is available in the [All-in-one-application-example](https://github.com/cybprojects65/BIMACInterpolator/tree/main/All-in-one-application-example "All-in-one-application-example") folder.
 
 ## Data preparation notes
 
