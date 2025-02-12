@@ -184,8 +184,9 @@ bimac<-function(punctual_data_file,
   cat("\tposterior_data_output:",posterior_data_output,"\n")
   cat("\tposterior_data_output_sd:",posterior_data_output_sd,"\n")
   
+  #extended to manage from air to waters
   min_diffusion_coefficient = 0.00000000001
-  max_diffusion_coefficient = 0.0000000003
+  max_diffusion_coefficient = 0.00003
   fast_solving<-T
   smooth = F
   if (moving_average_points!=0){
@@ -639,10 +640,10 @@ bimac<-function(punctual_data_file,
               D[k]<-D_p
               #if the terms involve land points set them to 0
               ux_dpsi_dx[k]<-ifelse(P[k+1]==0 || P[k-1]==0 , 0, 
-                (-ux[k]*(P[k+1]-P[k-1])/(2*resolution))+(D[k]*(P[k+1]-2*P[k]-P[k-1])/(resolution*resolution))
+                (-ux[k]*(P[k+1]-P[k-1])/(2*resolution))+(D[k]*(P[k+1]-2*P[k]+P[k-1])/(resolution*resolution))
               )
               uy_dpsi_dy[k]<-ifelse(P[k-ncol_r]==0 || P[k+ncol_r]==0, 0,
-                (-uy[k]*(P[k-ncol_r]-P[k+ncol_r])/(2*resolution))+(D[k]*(P[k-ncol_r]-2*P[k]-P[k+ncol_r])/(resolution*resolution))
+                (-uy[k]*(P[k-ncol_r]-P[k+ncol_r])/(2*resolution))+(D[k]*(P[k-ncol_r]-2*P[k]+P[k+ncol_r])/(resolution*resolution))
                 )
               #advection term: it is set to 0 if at least one term is 0
               advection[k]<-ifelse(ux_dpsi_dx[k]==0 || uy_dpsi_dy[k]==0, 
@@ -711,10 +712,10 @@ bimac<-function(punctual_data_file,
                 D[k]<-D_p
                 #if the terms involve land points set them to 0
                 ux_dpsi_dx[k]<-ifelse(P[k+1]==0 || P[k-1]==0 , 0, 
-                  (-ux[k]*(P[k+1]-P[k-1])/(2*resolution))+(D[k]*(P[k+1]-2*P[k]-P[k-1])/(resolution*resolution))
+                  (-ux[k]*(P[k+1]-P[k-1])/(2*resolution))+(D[k]*(P[k+1]-2*P[k]+P[k-1])/(resolution*resolution))
                 )
                 uy_dpsi_dy[k]<-ifelse(P[k-ncol_r]==0 || P[k+ncol_r]==0, 0,
-                  (-uy[k]*(P[k-ncol_r]-P[k+ncol_r])/(2*resolution))+(D[k]*(P[k-ncol_r]-2*P[k]-P[k+ncol_r])/(resolution*resolution))
+                  (-uy[k]*(P[k-ncol_r]-P[k+ncol_r])/(2*resolution))+(D[k]*(P[k-ncol_r]-2*P[k]+P[k+ncol_r])/(resolution*resolution))
                   )
                 #advection term: it is set to 0 if at least one term is 0
                 advection[k]<-ifelse(ux_dpsi_dx[k]==0 || uy_dpsi_dy[k]==0, 
