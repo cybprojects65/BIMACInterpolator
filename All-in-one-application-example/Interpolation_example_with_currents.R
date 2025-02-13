@@ -85,6 +85,7 @@ output<-bimac_currents_depthboundaries(punctual_data_file,
 )
 
 cat("#INTERPOLATION FINISHED...\n")
+cat("THE OUTPUT HAS BEEN WRITTEN TO ./output/\n")
 #retrieve the final bimac output
 bimac_output<-"./output/BIMAC_interpolation.asc"
 asc_file<-raster(bimac_output)

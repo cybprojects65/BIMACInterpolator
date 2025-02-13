@@ -66,6 +66,7 @@ output<-bimac_noadvection(punctual_data_file,
                           resolution=resolution)
 
 cat("#INTERPOLATION FINISHED...\n")
+cat("THE OUTPUT HAS BEEN WRITTEN TO ./output/\n")
 #retrieve the final bimac output
 bimac_output<-"./output/BIMAC_interpolation.asc"
 asc_file<-raster(bimac_output)
